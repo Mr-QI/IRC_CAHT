@@ -2,6 +2,7 @@
 #include "command.hpp"
 #include "head.hpp"
 #include "socket.hpp"
+#include "io.hpp"
 
 
 int main(int argc, char *argv[])
@@ -48,7 +49,6 @@ int main(int argc, char *argv[])
         */
         nfds = epoll_wait(epollfd, events, sizeof(events), -1);
         if(nfds < 0){ perror("Epoll_Wait Error."); exit(-1);}
-        std::cout << "nfds = " << nfds << std::endl;
         
         /* to itrate loop*/
         for(int i = 0; i < nfds; i++)
