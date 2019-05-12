@@ -30,8 +30,8 @@
 
 #define RPL_WELCOME ":%s 001 %s:Welcome to the Internet Relay Network %s!%s" //主机名 Nick  Nick  User 主机名
 #define ERR_NICKNAMEINUSE ":%s * %s ：Nickname is already in use"  //主机名 nick
-#define SERVER_TO_CLIENT "%s!%s %s" //nick 主机名 消息内容
-#define RPL_ENDOFNAMES "<channel> :End of NAMES list"//主机名 nick 频道名称 发送完成
+#define SERVER_TO_CLIENT "%s!%s@%s %s" //nick 主机名 消息内容
+#define RPL_ENDOFNAMES "%s :End of NAMES list"//主机名 nick 频道名称 发送完成
 #define ERR_NONICKNAMEGIVEN ":No nickname given"
 #define ERR_NEEDMOREPARAMS "%s :Not enough parameters" //命令名称
 #define RPL_YOURHOST "Your host is %s, running version %s" //服务器名称 服务器版本
@@ -42,13 +42,13 @@
 #define ERR_NOTEXTTOSEND ":No text to send"   
 #define ERR_NOSUCHNICK "%s :No such nick/channel"    //名称
 #define ERR_NOMOTD ":MOTD File is missing"
-#define RPL_LUSERCLIENT ":There are %d users and %d services on %d servers"
-#define RPL_LUSEROP "%d :operator(s) online"
-#define RPL_LUSERUNKNOWN "%d :unknown connection(s)"
-#define RPL_LUSERCHANNELS "%d :channels formed"
-#define RPL_LUSERME":I have %d clients and %d servers"
+#define RPL_LUSERCLIENT ":%s %s %s:There are %d users and %d services on %d servers" //host nick channel_name
+#define RPL_LUSEROP ":%s %s %s:%d :operator(s) online"
+#define RPL_LUSERUNKNOWN ":%s %s %s:%d :unknown connection(s)"
+#define RPL_LUSERCHANNELS ":%s %s %s:%d :channels formed"
+#define RPL_LUSERME":%s %s %s::I have %d clients and %d servers"
 #define RPL_WHOISUSER "nick:%s user:%s host:%s * :real name: %s"
-#define RPL_WHOISSERVER "nick:%s server:%s :%s"
+#define RPL_WHOISSERVER ":nick:%s server:%s :%s"
 #define RPL_ENDOFWHOIS "%s :End of WHOIS list"
 #define RPL_WHOISOPERATOR "%s :is an IRC operator"
 #define RPL_WHOISCHANNELS "<nick> :*( ( "@" / "+" ) <channel> " " )"
@@ -64,13 +64,52 @@
 #define ERR_USERSDONTMATCH ":Cannot change mode for other users"
 #define RPL_MODE ":%s %s"
 
+#include "head.hpp"
+#include "command.hpp"
 
 char *name(char *a)
 {
     gethostname(a,sizeof(a));
     return a;
 }
+std::string to_string(int num)
+{
+    std::ostringstream ostr;
+    ostr << num;
+    std::string astr = ostr.str();
+    return astr;
+}
+bool judge(int fd)
+{
+    std::vector<User>::iterator it;
+    int flag = 1;
+    for(it = users.begin();it != users.end();++it)
+    {
+        if(it->connfd == fd)
+        {
+            if(it->nick != nullptr&&it->note != nullptr)
+            {
+                flag = 0;
+                return true;
+            }
+        }
+    }
+    if(flag)
+    {
+        write(fd,"Please complete your login",27);
+    }
+}
+std::string getTime()
+{
+    time_t rawtime;
+    struct tm *ptminfo;
 
+    time(&rawtime);
+    ptminfo = localtime(&rawtime);
+    std::string curtime = to_string(ptminfo->tm_year + 1900) + "-" + to_string(ptminfo->tm_mon + 1) + "-" + to_string(ptminfo->tm_mday) + " " + to_string(ptminfo->tm_hour) + ":" + to_string(ptminfo->tm_min) + ":" + to_string(ptminfo->tm_sec);
+
+    return curtime;
+}
 void addEpollfd(int epollfd, int fd, bool enable_et)
 {
     //声明epoll_event结构体的变量,ev用于注册事件
@@ -88,35 +127,27 @@ void addEpollfd(int epollfd, int fd, bool enable_et)
     // 套接字立刻返回，不管I/O是否完成，该函数所在的线程会继续运行
     //eg. 在recv(fd...)时，该函数立刻返回，在返回时，内核数据还没准备好会返回WSAEWOULDBLOCK错误代码
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFD, 0) | O_NONBLOCK);
+    std::cout << "fd added to epoll.\n";
 }
 
 void conduct_name(char *a, int fd)
 {
     int i = 0;
     std::string n1;
-    // for (int j = 0; j < strlen(a); j++)
-    // {
-    //     printf("%c", a[j]);
-    // }
     while (a[i] != ' ')
     {
         i++;
     }
     i = i + 1;
-    // printf("%d\n", i);
     while (a[i] != '\0')
     {
-        // printf("%c\n", a[i]);
         n1.push_back(a[i]);
         i++;
     }
-    // std::cout << "n1:" << n1 << std::endl;
     std::vector<User>::iterator it;
     int flag = 0;
-    // printf("1\n");
     for (it = users.begin(); it != users.end(); ++it)
     {
-        // printf("2\n");
         if (it->nick == n1)
         {
             flag = 1;
@@ -124,27 +155,18 @@ void conduct_name(char *a, int fd)
             sprintf(format_message, ERR_NICKNAMEINUSE, " ", n1.c_str());
             write(fd, format_message, strlen(format_message)); //发送名字已被注册信息 ???????
         }
-        // printf("3\n");
     }
-    // printf("4\n");
     if (flag == 0)
     {
         User user;
-        // printf("5\n");
-        // init_User(user);
-        // printf("6\n");
         user.nick = n1;
-        // printf("7\n");
         user.connfd = fd;
         user.state = 0;
         user.hostname = "fengfan-PC";
-        // printf("8\n");
         users.push_back(user);
-        // printf("9\n");
         std::cout << user.nick << " " << user.connfd << " " << std::endl;
         write(fd," ",1);
     }
-    // printf("5\n");
 }
 void conduct_user(char *a, int fd)
 {
@@ -161,10 +183,12 @@ void conduct_user(char *a, int fd)
         i++;
     }
     std::vector<User>::iterator it;
+    int flag = 1;
     for (it = users.begin(); it != users.end(); ++it)
     {
-        if (it->connfd == fd)
+        if (it->connfd == fd && it->nick != nullptr)
         {
+            flag = 0;
             it->state = 1;
             char format_message[BUF_SIZE];
             char hos[100];
@@ -173,9 +197,17 @@ void conduct_user(char *a, int fd)
             write(fd, format_message, strlen(format_message));
         }
     }
+    if(flag == 1)
+    {
+         write(fd,"Please tell you your nick first!",33);
+    }
 }
 void conduct_whois(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     std::string n1;
     while (a[i] != ' ')
@@ -212,6 +244,10 @@ void conduct_whois(char *a, int fd)
 }
 void conduct_list(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     std::string n1;
     while (a[i] != ' ')
@@ -233,6 +269,10 @@ void conduct_list(char *a, int fd)
 }
 void conduct_names(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     std::string n1;
     while (a[i] != ' ')
@@ -263,8 +303,12 @@ void conduct_names(char *a, int fd)
 }
 void conduct_privmsg(char *a, int fd)
 {
+
     int i = 0;
-    std::string n1;
+    std::string n1;if(judge(fd) != true)
+    {
+        exit(0);
+    }
     std::string n2;
     while (a[i] != ' ')
     {
@@ -321,7 +365,7 @@ void conduct_privmsg(char *a, int fd)
                         if (is->connfd != fd)
                         {
                             char format_message[BUF_SIZE];
-                            sprintf(format_message, SERVER_TO_CLIENT, na, hos, a);
+                            sprintf(format_message, SERVER_TO_CLIENT, na.c_str(), na.c_str(),hos.c_str(), a);
                             write(fd, format_message, strlen(format_message));
                         }
                     }
@@ -373,7 +417,7 @@ void conduct_privmsg(char *a, int fd)
                     }
                 }
                 char format_message[BUF_SIZE];
-                sprintf(format_message, SERVER_TO_CLIENT, na.c_str(), hos.c_str(), a);
+                sprintf(format_message, SERVER_TO_CLIENT, na.c_str(), na.c_str(), hos.c_str(), a);
                 write(it->connfd, format_message, strlen(format_message));
             }
         }
@@ -387,6 +431,10 @@ void conduct_privmsg(char *a, int fd)
 }
 void conduct_notice(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     std::string n1;
     std::string n2;
@@ -424,7 +472,7 @@ void conduct_notice(char *a, int fd)
                 }
             }
             char format_message[BUF_SIZE];
-            sprintf(format_message, SERVER_TO_CLIENT, na, hos, a);
+            sprintf(format_message, SERVER_TO_CLIENT, na.c_str(), na.c_str(), hos.c_str(), a);
             write(fd, format_message, strlen(format_message));
         }
     }
@@ -437,6 +485,10 @@ void conduct_notice(char *a, int fd)
 }
 void conduct_join(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     std::string n1;
     while (a[i] != ' ')
@@ -470,7 +522,7 @@ void conduct_join(char *a, int fd)
             it->channel_user_names.push_back(user);
 
             char format_message[BUF_SIZE];
-            sprintf(format_message, SERVER_TO_CLIENT, user.nick.c_str(), user.hostname.c_str(), a);
+            sprintf(format_message, SERVER_TO_CLIENT, user.nick.c_str(), user.nick.c_str(),user.hostname.c_str(), a);
             write(fd, format_message, strlen(format_message));
 
             memset(format_message, '0', sizeof(format_message));
@@ -512,6 +564,10 @@ void conduct_join(char *a, int fd)
 }
 void conduct_part(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     std::string n1, n2;
     while (a[i] != ' ')
@@ -565,6 +621,10 @@ void conduct_part(char *a, int fd)
 }
 void conduct_kick(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     std::string n1, n2;
     while (a[i] != '0')
@@ -623,6 +683,10 @@ void conduct_kick(char *a, int fd)
 }
 void conduct_quit(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     std::string n1, n2;
     while (a[i] != ' ')
@@ -660,7 +724,7 @@ void conduct_quit(char *a, int fd)
                     if (iu->connfd != fd)
                     {
                         char format_message[BUF_SIZE];
-                        sprintf(format_message, SERVER_TO_CLIENT, na.c_str(), hos.c_str(), a);
+                        sprintf(format_message, SERVER_TO_CLIENT, na.c_str(), na.c_str(), hos.c_str(), a);
                         write(fd, format_message, strlen(format_message));
                     }
                 }
@@ -670,10 +734,18 @@ void conduct_quit(char *a, int fd)
 }
 void conduct_ping(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     write(fd, "PONG", 4);
 }
 void conduct_motd(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     FILE *fp;
     char ch;
     if ((fp = fopen("motd.txt", "r")))
@@ -691,6 +763,10 @@ void conduct_motd(char *a, int fd)
 }
 void conduct_topic(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     std::string n1;
     std::string n2;
@@ -729,6 +805,10 @@ void conduct_away(char *a, int fd)
 }
 void conduct_lusers(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     std::vector<User>::iterator it;
     char format_message[BUF_SIZE];
     sprintf(format_message, RPL_LUSERCLIENT, users.size(), users.size(), 1);
@@ -769,6 +849,10 @@ void conduct_lusers(char *a, int fd)
 }
 std::string delete_char(std::string a, char b)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     std::string::iterator it; //指向string类的迭代器。你可以理解为指针
     std::string str;
     str = a;
@@ -784,6 +868,10 @@ std::string delete_char(std::string a, char b)
 }
 void conduct_mode(char *a, int fd)
 {
+    if(judge(fd) != true)
+    {
+        exit(0);
+    }
     int i = 0;
     char format_message[BUF_SIZE];
     std::string n1, n2, n3;

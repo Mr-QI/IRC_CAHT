@@ -46,32 +46,7 @@ void init_Channel(Channel s)
 std::list<int>clientfd;
 std::vector<User>users;
 std::vector<Channel>channels;
-std::string getTime();  // get current time
 
-std::string to_string(int num)
-{
-   std::ostringstream ostr;
-   ostr << num;
-   std::string astr = ostr.str();
-   return astr ;
-}
-
-std::string getTime()
-{
-    time_t rawtime; 
-    struct tm *ptminfo; 
-
-    time(&rawtime); 
-    ptminfo = localtime(&rawtime); 
-    std::string curtime =  to_string(ptminfo->tm_year + 1900) + "-" 
-                + to_string(ptminfo->tm_mon + 1) + "-" 
-                + to_string(ptminfo->tm_mday) + " "
-                + to_string(ptminfo->tm_hour) + ":"
-                + to_string(ptminfo->tm_min) + ":"
-                + to_string(ptminfo->tm_sec);
-
-    return curtime;
-}
 
 #endif // !IRC_MSG_H
 
