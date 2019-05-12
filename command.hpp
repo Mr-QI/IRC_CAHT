@@ -2,7 +2,7 @@
 #define IRC_COMMAND_HPP
 
 #include "head.hpp"
-#include  "msg.hpp"
+#include "msg.hpp"
 
 #define SERVERPORT 8888
 #define BUF_SIZE 512
@@ -57,15 +57,11 @@
 #define RPL_TOPIC "%s :%s"
 #define ERR_CANNOTSENDTOCHAN "%s :Cannot send to channel"
 #define ERR_NOTONCHANNEL "%s :You're not on that channel"
-#define ERR_NEEDMOREPARAMS "<command> :Not enough parameters"
 #define RPL_NOTOPIC "<channel> :No topic is set"
 #define ERR_NOSUCHCHANNEL "%s :No such channel"
 #define ERR_UMODEUNKNOWNFLAG ":Unknown MODE flag"
 #define ERR_USERSDONTMATCH ":Cannot change mode for other users"
 #define RPL_MODE ":%s %s"
-
-#include "head.hpp"
-#include "command.hpp"
 
 char *name(char *a)
 {
@@ -87,7 +83,7 @@ bool judge(int fd)
     {
         if(it->connfd == fd)
         {
-            if(it->nick != nullptr&&it->note != nullptr)
+            if(!it->nick.empty()&&!it->note.empty())
             {
                 flag = 0;
                 return true;
@@ -148,12 +144,17 @@ void conduct_name(char *a, int fd)
     int flag = 0;
     for (it = users.begin(); it != users.end(); ++it)
     {
-        if (it->nick == n1)
+        if (it->nick == n1 && it->logonup == 0)
         {
             flag = 1;
             char format_message[BUF_SIZE];
             sprintf(format_message, ERR_NICKNAMEINUSE, " ", n1.c_str());
             write(fd, format_message, strlen(format_message)); //发送名字已被注册信息 ???????
+        }
+        else if(it->nick == n1 && it->logonup == 1 && it->state == 1)
+        {
+            flag = 1;
+            it->nick = n1;
         }
     }
     if (flag == 0)
@@ -165,7 +166,6 @@ void conduct_name(char *a, int fd)
         user.hostname = "fengfan-PC";
         users.push_back(user);
         std::cout << user.nick << " " << user.connfd << " " << std::endl;
-        write(fd," ",1);
     }
 }
 void conduct_user(char *a, int fd)
@@ -186,10 +186,11 @@ void conduct_user(char *a, int fd)
     int flag = 1;
     for (it = users.begin(); it != users.end(); ++it)
     {
-        if (it->connfd == fd && it->nick != nullptr)
+        if (it->connfd == fd && !it->nick.empty())
         {
             flag = 0;
             it->state = 1;
+            it->logonup = 1;
             char format_message[BUF_SIZE];
             char hos[100];
             gethostname(hos,sizeof(hos));
@@ -849,10 +850,6 @@ void conduct_lusers(char *a, int fd)
 }
 std::string delete_char(std::string a, char b)
 {
-    if(judge(fd) != true)
-    {
-        exit(0);
-    }
     std::string::iterator it; //指向string类的迭代器。你可以理解为指针
     std::string str;
     str = a;
