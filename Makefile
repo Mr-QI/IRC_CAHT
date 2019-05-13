@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -std=c++11
+CFLAGS = -std=c++11 
  
 all:server.o client.o
 	$(CC) $(CFLAGS) server.o -o server -lpthread
