@@ -43,7 +43,6 @@ void *closeServer(server_t *server)
 void *handleServer(void* arg)
 {
     server_t *&server = *(server_t**)arg;
-
     int nfds = epoll_wait(server->epollfd, server->events, sizeof(server->events), -1);
     if (nfds < 0)
     {
@@ -59,6 +58,7 @@ void *handleServer(void* arg)
         if (server->events[i].data.fd == server->socketfd)
         {
             int connfd = Accept(server->socketfd, (struct sockaddr *)&server->clientAddr, (socklen_t *)&server->addrLen);
+            clientfd.push_back(connfd);
             fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL) | O_NONBLOCK);
             server->ev.events = EPOLLIN | EPOLLET;
             server->ev.data.fd = connfd;
