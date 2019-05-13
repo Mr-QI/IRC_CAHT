@@ -123,7 +123,6 @@ void addEpollfd(int epollfd, int fd, bool enable_et)
     // 套接字立刻返回，不管I/O是否完成，该函数所在的线程会继续运行
     //eg. 在recv(fd...)时，该函数立刻返回，在返回时，内核数据还没准备好会返回WSAEWOULDBLOCK错误代码
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFD, 0) | O_NONBLOCK);
-    std::cout << "fd added to epoll.\n";
 }
 
 void conduct_name(char *a, int fd)

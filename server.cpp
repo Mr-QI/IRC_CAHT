@@ -1,6 +1,6 @@
 #include "command.hpp"
 #include "socket.hpp"
-#include "io.hpp"
+#include "threadpool.hpp"
 
 #define FLAGS_WAIT_TASK_EXIT 1
 typedef struct
@@ -19,11 +19,8 @@ typedef struct
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
-int initServer(void *arg)
+int initServer(server_t *server)
 {
-    server_t *server;
-    server = (server_t *)arg;
     server->serverAddr.sin_family = AF_INET;
     server->serverAddr.sin_port = htons(SERVER_PORT);
     server->serverAddr.sin_addr.s_addr = INADDR_ANY;
@@ -34,20 +31,19 @@ int initServer(void *arg)
     memset(server->events, 0, sizeof(server->events));
     server->socketfd = 0;
     server->epollfd = 0;
+    return 0;
 }
 
-void *closeServer(void *arg)
+void *closeServer(server_t *server)
 {
-    server_t *server;
-    server = (server_t *)arg;
     close(server->socketfd);
     close(server->epollfd);
 }
 
-void *handleServer(void *arg)
+void *handleServer(void* arg)
 {
-    server_t *server;
-    server = (server_t *)arg;
+    server_t *&server = *(server_t**)arg;
+
     int nfds = epoll_wait(server->epollfd, server->events, sizeof(server->events), -1);
     if (nfds < 0)
     {
@@ -66,7 +62,7 @@ void *handleServer(void *arg)
             fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL) | O_NONBLOCK);
             server->ev.events = EPOLLIN | EPOLLET;
             server->ev.data.fd = connfd;
-            if(epoll_ctl(server->epollfd, EPOLL_CTL_ADD, server->ev.data.fd, &server->ev) < 0)
+            if (epoll_ctl(server->epollfd, EPOLL_CTL_ADD, server->ev.data.fd, &server->ev) < 0)
             {
                 perror(" Epoll_Ctl Error.");
                 exit(-1);
@@ -81,11 +77,14 @@ void *handleServer(void *arg)
         }
     }
 }
-
-void *startServer(void *arg)
+ 
+int main (int argc, char **argv)
 {
+    //daemon(0,0);
     server_t *server;
-    server = (server_t *)arg;
+    server = (server_t*)malloc(sizeof(server_t));
+    initServer(server);
+    //Socket(server->socketfd);
     Socket(server->socketfd);
     Bind(server->socketfd, (struct sockaddr *)&server->serverAddr, server->addrLen);
     Listen(server->socketfd, 5);
@@ -106,23 +105,17 @@ void *startServer(void *arg)
         perror("Epoll_Ctl Error.");
         exit(-1);
     }
-    int rc, fd, n;
+
+   
+    threadpool_init(10);
     while (1)
     {
-        handleServer(server);
-        //threadpool_add_task((threadpool_t *)pool, &threadServer, (server_t*)&server);
+        /* code */
+        pool_add_worker (handleServer, (server_t*)&server);
     }
-
     closeServer(server);
-}
-
-int main(int argc, char *argv[])
-{
-    server_t *server;
-    initServer(&server);
-    void *pool;
-    //threadpool_add_task((threadpool_t *)pool, &startServer, (server_t *)&server);
-        //threadpool_destory((threadpool_t *)pool);
-    startServer(&server);
+    sleep (5);
+    threadpool_destroy ();
+    free (server);
     return 0;
 }
