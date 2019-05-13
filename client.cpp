@@ -75,7 +75,6 @@ int main(int argc, char *argv[])
         while (clientStatus)
         {
             nfds = epoll_wait(epollfd, events, sizeof(events), -1);
-            std::cout << "nfds: " << nfds << std::endl;
             /* handle nfds*/
             for (int i = 0; i < nfds; i++)
             {
@@ -105,7 +104,6 @@ int main(int argc, char *argv[])
                         clientStatus = 0;
                     else
                         send(socketfd, recv_buffer, sizeof(recv_buffer), 0);
-
                 }
             }
         }

@@ -21,7 +21,6 @@
 #include <utility>
 #include <unistd.h>
 #include <signal.h>
-#include <string.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <netinet/in.h>
